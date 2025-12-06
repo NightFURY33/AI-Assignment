@@ -1,3 +1,13 @@
+import logic 
+
+# 之前出现常量
+BOARD_SIZE = 15
+Empty = 0
+Black = 1
+White = 2
+
+
+
 # 棋盘评估权重（可根据实际情况调整）
 SCORES = {
     "five": 100000,    # 五子连珠
@@ -96,7 +106,7 @@ def is_game_over(board):
     for r in range(BOARD_SIZE):
         for c in range(BOARD_SIZE):
             if board[r][c] != Empty:
-                if check_win(board, r, c, board[r][c]):
+                if logic.check_win(board, r, c, board[r][c]):
                     return True
     return False
 
