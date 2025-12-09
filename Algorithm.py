@@ -33,6 +33,11 @@ TT_UPPER_BOUND = 2 # 评估值是上限 (Alpha 剪枝发生时)
 # 这是一个 15x15x3 的大表，每个位置、每种棋子都有一个随机数
 ZOBRIST_TABLE = [[[random.getrandbits(64) for _ in range(3)] for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
 
+
+class SearchStopped(Exception):
+    """在搜索被外部请求停止时抛出的异常（协作式取消）。"""
+    pass
+
 def get_zobrist_hash(board):
     """根据 Zobrist 算法快速计算当前棋盘的唯一哈希值"""
     h = 0
@@ -165,11 +170,15 @@ def generate_candidate_moves(board):
 
 # --- Minimax 核心算法（带 Alpha-Beta 和置换表） ---
 
-def minimax(board, depth, is_maximizing, alpha, beta, player):
+def minimax(board, depth, is_maximizing, alpha, beta, player, stop_event=None):
     """
     Minimax 算法，集成了 Alpha-Beta 剪枝和置换表优化。
     """
     
+    # 可协作取消：如果 stop_event 被置位，立即中断搜索
+    if stop_event is not None and stop_event.is_set():
+        raise SearchStopped()
+
     # 1. 终止条件
     if depth == 0 or is_game_over(board):
         return evaluate_board(board, player)
@@ -188,6 +197,10 @@ def minimax(board, depth, is_maximizing, alpha, beta, player):
                 return tt_score
             elif tt_flag == TT_UPPER_BOUND and tt_score <= alpha:
                 return tt_score
+
+    # 再次检查是否需要取消（避免长时间在后续计算中浪费）
+    if stop_event is not None and stop_event.is_set():
+        raise SearchStopped()
 
     # 3. 初始化并生成走法
     original_alpha = alpha # 记录原始 alpha 值，用于 TT 存储
@@ -213,8 +226,11 @@ def minimax(board, depth, is_maximizing, alpha, beta, player):
     # 4. 遍历和递归
     tt_flag = TT_EXACT # 默认标记为精确值
     for score_ignored, r, c in scored_moves:
+        # 每次遍历新的走法前检查取消请求
+        if stop_event is not None and stop_event.is_set():
+            raise SearchStopped()
         board[r][c] = current_player
-        score = minimax(board, depth - 1, not is_maximizing, alpha, beta, player)
+        score = minimax(board, depth - 1, not is_maximizing, alpha, beta, player, stop_event=stop_event)
         board[r][c] = Empty
         
         if is_maximizing:
@@ -242,7 +258,7 @@ def minimax(board, depth, is_maximizing, alpha, beta, player):
     
     return best_score
 
-def find_best_move(board, player, max_depth=3):
+def find_best_move(board, player, max_depth=3, stop_event=None):
     """
     寻找最佳落子位置。这是 AI 决策的主函数。
     """
@@ -259,7 +275,12 @@ def find_best_move(board, player, max_depth=3):
     for r, c in candidate_moves:
         board[r][c] = player
         # 评估该走法（下一层是对手，所以 is_maximizing=False）
-        score = minimax(board, max_depth - 1, False, -float('inf'), float('inf'), player)
+        try:
+            score = minimax(board, max_depth - 1, False, -float('inf'), float('inf'), player, stop_event=stop_event)
+        except SearchStopped:
+            # 搜索被外部取消，返回 None 表示没有决定
+            return None
+
         board[r][c] = Empty # 撤销落子
         
         if score > best_score:
