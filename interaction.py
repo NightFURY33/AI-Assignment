@@ -2,6 +2,10 @@ import tkinter as tk
 import Algorithm as Algo
 import logic 
 from tkinter import messagebox
+<<<<<<< HEAD
+=======
+import Algorithm as Algo
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
 import threading
 from PIL import Image, ImageTk
 
@@ -120,6 +124,7 @@ def handle_click(event):
         # 检查玩家是否获胜
         if logic.check_win(board, r, c, player_color):
             messagebox.showinfo("Game Over", "You win!")
+<<<<<<< HEAD
             game_started = False
             return
         
@@ -127,6 +132,9 @@ def handle_click(event):
         if logic.is_board_full(board):
             messagebox.showinfo("Game Over", "Game ends in a draw!")
             game_started = False
+=======
+            
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
             return
         
         # 切换到AI回合
@@ -137,6 +145,7 @@ def handle_click(event):
         return
 
 def choose_color():
+<<<<<<< HEAD
     global game_started, player_color, ai_color
     
     if game_started:
@@ -152,6 +161,22 @@ def choose_color():
         ai_color = Black
     messagebox.showinfo("Choice made", f"You chose {'black' if player_color == Black else 'white'}. The game begins!")
     start_game_turn()
+=======
+        if game_started:
+            messagebox.showwarning("Game In Progress", "A game is already in progress!")
+            return 
+        
+        choice = messagebox.askquestion("Please make your choice", "Do you want to play as black？ (Black plays first)")
+        if choice == 'yes':
+            global player_color, ai_color
+            player_color = Black
+            ai_color = White
+        else:
+            player_color = White
+            ai_color = Black
+        messagebox.showinfo("Choice made", f"You chose {'black' if player_color == Black else 'white'}. The game begins!")
+        start_game_turn()
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
 
 def AI_move():
     """
@@ -159,7 +184,11 @@ def AI_move():
     后台线程完成后通过 `root.after(0, ...)` 回到主线程更新 UI。
     使用 `ai_search_id` 来使重启或新的搜索使旧线程失效，避免旧线程把过时结果应用到界面上。
     """
+<<<<<<< HEAD
     global board, current_player, ai_color, player_color, state, move, pending_after_id, game_started, ai_search_id, ai_working, ai_stop_event
+=======
+    global board, current_player, ai_color, player_color, state, move, pending_after_id, game_started, ai_search_id, ai_working
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
 
     # 如果游戏已被重置/终止，直接返回
     if not game_started:
@@ -176,6 +205,10 @@ def AI_move():
     this_search_id = ai_search_id
 
     # 创建协作式取消事件，restart/reconfirm 会设置它来取消后台搜索
+<<<<<<< HEAD
+=======
+    global ai_stop_event
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
     ai_stop_event = threading.Event()
     stop_ev = ai_stop_event
 
@@ -196,12 +229,17 @@ def AI_move():
 
         # 回到主线程安全地应用结果
         def finish():
+<<<<<<< HEAD
             global board, current_player, move, state, ai_working, game_started
+=======
+            global board, current_player, move, state, ai_working
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
             # 如果该搜索已被新的搜索或重启覆盖，则忽略结果
             if search_id != ai_search_id or not game_started or (stop_ev is not None and stop_ev.is_set()):
                 ai_working = False
                 return
 
+<<<<<<< HEAD
             # 如果没有可下的位置，检查是否平局
             if position is None:
                 if logic.is_board_full(board):
@@ -211,12 +249,20 @@ def AI_move():
                     messagebox.showinfo("Game Over", "No valid moves available!")
                     board = logic.initialize_board()
                     draw_board()
+=======
+            if position is None:
+                messagebox.showinfo("Game Over", "No valid moves available!")
+                # 此处选择重新初始化棋盘并返回（保持旧行为）
+                board = logic.initialize_board()
+                draw_board()
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
                 ai_working = False
                 return
 
             board[position[0]][position[1]] = ai_color
             draw_board()
 
+<<<<<<< HEAD
             # 检查AI是否获胜
             if logic.check_win(board, position[0], position[1], ai_color):
                 messagebox.showinfo("Game Over", "AI wins!")
@@ -228,6 +274,10 @@ def AI_move():
             if logic.is_board_full(board):
                 messagebox.showinfo("Game Over", "Game ends in a draw!")
                 game_started = False
+=======
+            if logic.check_win(board, position[0], position[1], ai_color):
+                messagebox.showinfo("Game Over", "AI wins!")
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
                 ai_working = False
                 return
 
@@ -248,11 +298,19 @@ def start_game_turn():
     
     game_started = True
     move = 0
+<<<<<<< HEAD
     board = logic.initialize_board()
+=======
+    board=logic.initialize_board()
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
     draw_board()
     if ai_color == Black:  # AI先行
         current_player = ai_color
         # 保存 after id，便于在 restart 时取消
+<<<<<<< HEAD
+=======
+        global pending_after_id
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
         pending_after_id = root.after(500, AI_move)
     else:  # 玩家先行
         current_player = player_color
@@ -268,7 +326,13 @@ def on_player_move():
     current_player = ai_color
     move = 0  # 重置标志
     state.config(text="AI is thinking...")
+<<<<<<< HEAD
     pending_after_id = root.after(800, AI_move)  # 延迟800ms让AI思考
+=======
+    global pending_after_id
+    pending_after_id = root.after(800, AI_move)  # 延迟800ms让AI思考
+        
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
 
 def reconfirm():
     global pending_after_id, game_started, root, ai_stop_event
@@ -289,6 +353,10 @@ def reconfirm():
         pending_after_id = None
         # 请求取消任何正在运行的 AI 搜索
         try:
+<<<<<<< HEAD
+=======
+            global ai_stop_event
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
             if ai_stop_event is not None:
                 ai_stop_event.set()
         except Exception:
@@ -306,7 +374,46 @@ def reconfirm():
             root = None
 
 def restart():
+<<<<<<< HEAD
     global game_started, board, current_player, player_color, ai_color, state, move, ai_stop_event, pending_after_id
+=======
+    global game_started, board, current_player, player_color, ai_color, state, move, ai_stop_event
+    
+    # 询问用户是否确认重启
+    if messagebox.askyesno("Restart", "Do you want to restart the game?"):
+        # 取消任何挂起的回调（比如 AI 的延迟移动）
+        global pending_after_id
+        try:
+            if pending_after_id is not None:
+                root.after_cancel(pending_after_id)
+        except Exception:
+            pass
+        pending_after_id = None
+
+        # 请求取消任何正在运行的 AI 搜索（协作取消）
+        try:
+            global ai_stop_event
+            if ai_stop_event is not None:
+                ai_stop_event.set()
+                ai_stop_event = None
+        except Exception:
+            pass
+
+        # 重新初始化棋盘和游戏状态（在同一窗口内刷新）
+        board = logic.initialize_board()
+        current_player = Black  # 黑子先行
+        game_started = False
+        player_color = None
+        ai_color = None
+        move = 0
+        draw_board()
+        state.config(text="Welcome to play gomoku!")
+    else:
+        return
+
+
+
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
     
     # 询问用户是否确认重启
     if messagebox.askyesno("Restart", "Do you want to restart the game?"):
@@ -380,6 +487,10 @@ def start_gui():
     canvas.focus_set()
     # 尝试加载同目录下的 JPG 背景图并缩放到画布大小
     try:
+<<<<<<< HEAD
+=======
+        global bg_photo
+>>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
         img = Image.open('mmexport1765254795139_edit_70690453677752.jpg')
         img = img.resize((WINDOW_SIZE, WINDOW_SIZE), Image.LANCZOS)
         bg_photo = ImageTk.PhotoImage(img)
