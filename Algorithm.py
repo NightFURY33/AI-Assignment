@@ -21,28 +21,9 @@ SCORES = {
     "two_with_gap": 1           # 冲二
 }
 
-# --- 置换表 (Transposition Table) 和 Zobrist Hashing 设置 ---
-# 用于存储计算过的局面结果，避免重复搜索
-TRANSPOSITION_TABLE = {}
-# 评估值的边界类型标记
-TT_EXACT = 0      # 准确值
-TT_LOWER_BOUND = 1 # 评估值是下限 (Beta 剪枝发生时)
-TT_UPPER_BOUND = 2 # 评估值是上限 (Alpha 剪枝发生时)
-
-# Zobrist Hash所需的随机数表，用于快速生成棋盘哈希
-# 这是一个 15x15x3 的大表，每个位置、每种棋子都有一个随机数
-ZOBRIST_TABLE = [[[random.getrandbits(64) for _ in range(3)] for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
-
-def get_zobrist_hash(board):
-    """根据 Zobrist 算法快速计算当前棋盘的唯一哈希值"""
-    h = 0
-    for r in range(BOARD_SIZE):
-        for c in range(BOARD_SIZE):
-            piece = board[r][c]
-            if piece != Empty:
-                # 通过异或操作计算哈希，比直接复制棋盘快得多
-                h ^= ZOBRIST_TABLE[r][c][piece]
-    return h
+class SearchStopped(Exception):
+    """在搜索被外部请求停止时抛出的异常（协作式取消）。"""
+    pass
 
 # --- 棋盘评估函数：决定 AI 棋力上限的核心部分 ---
 
@@ -127,12 +108,17 @@ def pattern_to_score(pattern):
 
 def is_game_over(board):
     """检查是否有玩家获胜，游戏是否结束"""
-    # 简单遍历所有已落子位置，调用外部 check_win 逻辑
+    # 检查是否有玩家获胜
     for r in range(BOARD_SIZE):
         for c in range(BOARD_SIZE):
             if board[r][c] != Empty:
                 if logic.check_win(board, r, c, board[r][c]):
                     return True
+    
+    # 检查是否平局（棋盘已满）
+    if logic.is_board_full(board):
+        return True
+        
     return False
 
 # --- 核心优化函数：限制搜索区域 ---
@@ -163,36 +149,22 @@ def generate_candidate_moves(board):
 
     return list(candidate_moves)
 
-# --- Minimax 核心算法（带 Alpha-Beta 和置换表） ---
+# --- Minimax 核心算法（带 Alpha-Beta） ---
 
-def minimax(board, depth, is_maximizing, alpha, beta, player):
+def minimax(board, depth, is_maximizing, alpha, beta, player, stop_event=None):
     """
-    Minimax 算法，集成了 Alpha-Beta 剪枝和置换表优化。
+    Minimax 算法，集成了 Alpha-Beta 剪枝优化。
     """
     
+    # 可协作取消：如果 stop_event 被置位，立即中断搜索
+    if stop_event is not None and stop_event.is_set():
+        raise SearchStopped()
+
     # 1. 终止条件
     if depth == 0 or is_game_over(board):
         return evaluate_board(board, player)
-    
-    current_hash = get_zobrist_hash(board)
-    
-    # 2. 置换表查询 (TT Lookup)
-    if current_hash in TRANSPOSITION_TABLE:
-        tt_depth, tt_score, tt_flag = TRANSPOSITION_TABLE[current_hash]
-        
-        # 结果可用性判断
-        if tt_depth >= depth:
-            if tt_flag == TT_EXACT:
-                return tt_score
-            elif tt_flag == TT_LOWER_BOUND and tt_score >= beta:
-                return tt_score
-            elif tt_flag == TT_UPPER_BOUND and tt_score <= alpha:
-                return tt_score
 
-    # 3. 初始化并生成走法
-    original_alpha = alpha # 记录原始 alpha 值，用于 TT 存储
     current_player = player if is_maximizing else (White if player == Black else Black)
-    
     candidate_moves = generate_candidate_moves(board)
 
     # 走法排序 (Move Ordering)：根据快速评估分数排序，提高剪枝效率
@@ -210,46 +182,32 @@ def minimax(board, depth, is_maximizing, alpha, beta, player):
         best_score = float('inf')
         scored_moves.sort(key=lambda x: x[0]) # Min 玩家，低分优先
     
-    # 4. 遍历和递归
-    tt_flag = TT_EXACT # 默认标记为精确值
+    # 遍历和递归
     for score_ignored, r, c in scored_moves:
+        # 每次遍历新的走法前检查取消请求
+        if stop_event is not None and stop_event.is_set():
+            raise SearchStopped()
         board[r][c] = current_player
-        score = minimax(board, depth - 1, not is_maximizing, alpha, beta, player)
+        score = minimax(board, depth - 1, not is_maximizing, alpha, beta, player, stop_event=stop_event)
         board[r][c] = Empty
         
         if is_maximizing:
             best_score = max(best_score, score)
             alpha = max(alpha, best_score)
             if best_score >= beta:
-                tt_flag = TT_LOWER_BOUND # Beta 剪枝发生
-                break 
+                break  # Beta 剪枝
         else:
             best_score = min(best_score, score)
             beta = min(beta, best_score)
             if best_score <= alpha:
-                tt_flag = TT_UPPER_BOUND # Alpha 剪枝发生
-                break
-    
-    # 5. 存储结果到置换表
-    # 如果没有发生剪枝，我们判断它是否是精确值
-    if tt_flag == TT_EXACT:
-        if is_maximizing and best_score < original_alpha:
-            tt_flag = TT_UPPER_BOUND # 结果小于原始 alpha，应标记为上界
-        elif not is_maximizing and best_score > beta: 
-            tt_flag = TT_LOWER_BOUND # 结果大于 beta，应标记为下界
-
-    TRANSPOSITION_TABLE[current_hash] = (depth, best_score, tt_flag)
+                break  # Alpha 剪枝
     
     return best_score
 
-def find_best_move(board, player, max_depth=3):
+def find_best_move(board, player, max_depth=3, stop_event=None):
     """
     寻找最佳落子位置。这是 AI 决策的主函数。
     """
-    # 每次新回合开始时，清空置换表，确保搜索准确
-    global TRANSPOSITION_TABLE
-    TRANSPOSITION_TABLE = {}
-    
     best_score = -float('inf')
     best_move = None
     
@@ -259,7 +217,12 @@ def find_best_move(board, player, max_depth=3):
     for r, c in candidate_moves:
         board[r][c] = player
         # 评估该走法（下一层是对手，所以 is_maximizing=False）
-        score = minimax(board, max_depth - 1, False, -float('inf'), float('inf'), player)
+        try:
+            score = minimax(board, max_depth - 1, False, -float('inf'), float('inf'), player, stop_event=stop_event)
+        except SearchStopped:
+            # 搜索被外部取消，返回 None 表示没有决定
+            return None
+
         board[r][c] = Empty # 撤销落子
         
         if score > best_score:

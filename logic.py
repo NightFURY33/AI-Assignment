@@ -1,4 +1,3 @@
-
 # 棋盘尺寸为 15x15
 BOARD_SIZE = 15
 Empty = 0  # 空位
@@ -13,6 +12,14 @@ def initialize_board():
         board.append(row)
     
     return board
+
+def is_board_full(board):
+    """检查棋盘是否已满（没有空位）"""
+    for r in range(BOARD_SIZE):
+        for c in range(BOARD_SIZE):
+            if board[r][c] == Empty:
+                return False
+    return True
 
 def check_win(board, r, c, player):#检查是否有获胜情况
     # 定义四个方向
@@ -35,16 +42,13 @@ def check_win(board, r, c, player):#检查是否有获胜情况
             nr = r - dr * i
             nc = c - dc * i # 相反方向
             # 是否在棋盘内
-            if not (0 <= nr < BOARD_SIZE and 0 <= nc < BOARD_SIZE):
+            if not (0<=nr<BOARD_SIZE and 0 <= nc < BOARD_SIZE):
                 break
-            # 和上一个方向同理
-            if board[nr][nc] == player:
+            # 是否是当前玩家的棋子
+            if board[nr][nc] ==player:
                 count += 1
             else:
-                break
-                
-        # 是否达到五子
-        if count >= 5:
+                break # 遇到空位或对手棋子
+        if count >=5:
             return True
-            
     return False
