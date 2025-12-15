@@ -20,7 +20,7 @@ SCORES = {
     "live_two": 10,      # 活二
     "two_with_gap": 1           # 冲二
 }
-
+    
 class SearchStopped(Exception):
     """在搜索被外部请求停止时抛出的异常（协作式取消）。"""
     pass
