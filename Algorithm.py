@@ -20,41 +20,10 @@ SCORES = {
     "live_two": 10,      # 活二
     "two_with_gap": 1           # 冲二
 }
-<<<<<<< HEAD
     
 class SearchStopped(Exception):
     """在搜索被外部请求停止时抛出的异常（协作式取消）。"""
     pass
-=======
-
-# --- 置换表 (Transposition Table) 和 Zobrist Hashing 设置 ---
-# 用于存储计算过的局面结果，避免重复搜索
-TRANSPOSITION_TABLE = {}
-# 评估值的边界类型标记
-TT_EXACT = 0      # 准确值
-TT_LOWER_BOUND = 1 # 评估值是下限 (Beta 剪枝发生时)
-TT_UPPER_BOUND = 2 # 评估值是上限 (Alpha 剪枝发生时)
-
-# Zobrist Hash所需的随机数表，用于快速生成棋盘哈希
-# 这是一个 15x15x3 的大表，每个位置、每种棋子都有一个随机数
-ZOBRIST_TABLE = [[[random.getrandbits(64) for _ in range(3)] for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
-
-
-class SearchStopped(Exception):
-    """在搜索被外部请求停止时抛出的异常（协作式取消）。"""
-    pass
-
-def get_zobrist_hash(board):
-    """根据 Zobrist 算法快速计算当前棋盘的唯一哈希值"""
-    h = 0
-    for r in range(BOARD_SIZE):
-        for c in range(BOARD_SIZE):
-            piece = board[r][c]
-            if piece != Empty:
-                # 通过异或操作计算哈希，比直接复制棋盘快得多
-                h ^= ZOBRIST_TABLE[r][c][piece]
-    return h
->>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
 
 # --- 棋盘评估函数：决定 AI 棋力上限的核心部分 ---
 
@@ -195,15 +164,6 @@ def minimax(board, depth, is_maximizing, alpha, beta, player, stop_event=None):
     if depth == 0 or is_game_over(board):
         return evaluate_board(board, player)
 
-<<<<<<< HEAD
-=======
-    # 再次检查是否需要取消（避免长时间在后续计算中浪费）
-    if stop_event is not None and stop_event.is_set():
-        raise SearchStopped()
-
-    # 3. 初始化并生成走法
-    original_alpha = alpha # 记录原始 alpha 值，用于 TT 存储
->>>>>>> 204e0b4ec4150e7662e5dac06311b53d28650857
     current_player = player if is_maximizing else (White if player == Black else Black)
     candidate_moves = generate_candidate_moves(board)
 
