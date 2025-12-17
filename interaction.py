@@ -1,14 +1,15 @@
 import tkinter as tk
 import Algorithm as Algo
-import logic
+import logic 
 from tkinter import messagebox
+import threading
 from PIL import Image, ImageTk
 
 # Constants
 BOARD_SIZE = 15
-EMPTY = 0
-BLACK = 1
-WHITE = 2
+Empty = 0
+Black = 1
+White = 2
 
 # UI dimensions
 CELL_SIZE = 40
@@ -18,20 +19,26 @@ WINDOW_SIZE = MARGIN * 2 + CELL_SIZE * (BOARD_SIZE - 1)
 # Global variables
 root = None
 canvas = None
-status_label = None
-current_player = BLACK
+state = None
+current_player = Black
 player_color = None
 ai_color = None
-move_made = 0
+warning = 0
+move = 0
 game_started = False
 pending_after_id = None
+ai_search_id = 0
+ai_working = False
+ai_stop_event = None
 bg_photo = None
-board = [[EMPTY for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
 
+# Initialize board
+board = [[Empty for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
 
 def draw_board():
-    """Draw the board grid and stones."""
+    """Draw grid and pieces based on board state."""
     global canvas, board
+    
     canvas.delete("all")
     
     # Draw background image if available
@@ -58,53 +65,51 @@ def draw_board():
         end_y = MARGIN + (BOARD_SIZE - 1) * CELL_SIZE
         canvas.create_line(start_x, start_y, end_x, end_y)
 
-    # Draw stones
-    stone_radius = CELL_SIZE * 0.4
+    # Draw pieces
+    r_offset = CELL_SIZE * 0.4
     
-    for row in range(BOARD_SIZE):
-        for col in range(BOARD_SIZE):
-            if board[row][col] != EMPTY:
-                center_x = MARGIN + col * CELL_SIZE
-                center_y = MARGIN + row * CELL_SIZE
+    for r in range(BOARD_SIZE):
+        for c in range(BOARD_SIZE):
+            if board[r][c] != Empty:
+                center_x = MARGIN + c * CELL_SIZE
+                center_y = MARGIN + r * CELL_SIZE
                 
-                color = "black" if board[row][col] == BLACK else "white"
-                outline = "gray" if board[row][col] == WHITE else "black"
+                color = "black" if board[r][c] == Black else "white"
+                outline_color = "gray" if board[r][c] == White else "black"
                 
                 canvas.create_oval(
-                    center_x - stone_radius, center_y - stone_radius,
-                    center_x + stone_radius, center_y + stone_radius,
-                    fill=color, outline=outline
+                    center_x - r_offset, center_y - r_offset,
+                    center_x + r_offset, center_y + r_offset,
+                    fill=color, outline=outline_color
                 )
 
-
 def handle_click(event):
-    """Handle mouse click for player move."""
-    global game_started, board, move_made
+    """Handle mouse click to place player piece."""
+    global game_started, board, move, warning
     
     if not game_started or current_player != player_color:
-        return  # Not player's turn
-    
-    # Calculate board coordinates
-    col = round((event.x - MARGIN) / CELL_SIZE)
-    row = round((event.y - MARGIN) / CELL_SIZE)
-    
-    # Validate coordinates
-    if not (0 <= row < BOARD_SIZE and 0 <= col < BOARD_SIZE):
         return
     
-    # Check if position is empty
-    if board[row][col] == EMPTY:
-        move_made = 1
-        board[row][col] = player_color
+    # Calculate board coordinates
+    c = round((event.x - MARGIN) / CELL_SIZE)
+    r = round((event.y - MARGIN) / CELL_SIZE)
+    
+    if not (0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE):
+        return
+    
+    if board[r][c] == Empty:
+        warning = 0
+        move = 1
+        board[r][c] = player_color
         draw_board()
         
-        # Check if player wins
-        if logic.check_win(board, row, col, player_color):
+        # Check win
+        if logic.check_win(board, r, c, player_color):
             messagebox.showinfo("Game Over", "You win!")
             game_started = False
             return
         
-        # Check for draw
+        # Check draw
         if logic.is_board_full(board):
             messagebox.showinfo("Game Over", "Game ends in a draw!")
             game_started = False
@@ -114,129 +119,165 @@ def handle_click(event):
         on_player_move()
     else:
         messagebox.showwarning("Invalid Move", "This position is already occupied.")
+        warning = 1
         return
 
-
 def choose_color():
-    """Let player choose stone color."""
+    """Let player choose black or white."""
     global game_started, player_color, ai_color
     
     if game_started:
         messagebox.showwarning("Game In Progress", "A game is already in progress!")
         return 
     
-    choice = messagebox.askquestion("Color Choice", "Do you want to play as black? (Black plays first)")
+    choice = messagebox.askquestion("Please make your choice", "Do you want to play as black? (Black plays first)")
     if choice == 'yes':
-        player_color = BLACK
-        ai_color = WHITE
+        player_color = Black
+        ai_color = White
     else:
-        player_color = WHITE
-        ai_color = BLACK
-    
-    messagebox.showinfo("Choice Made", f"You chose {'black' if player_color == BLACK else 'white'}. The game begins!")
+        player_color = White
+        ai_color = Black
+    messagebox.showinfo("Choice made", f"You chose {'black' if player_color == Black else 'white'}. The game begins!")
     start_game_turn()
 
+def AI_move():
+    """
+    Start AI search in background thread.
+    Uses ai_search_id to invalidate old searches.
+    """
+    global board, current_player, ai_color, player_color, state, move, pending_after_id, game_started, ai_search_id, ai_working, ai_stop_event
 
-def ai_move():
-    """AI makes a move (blocking version)."""
-    global board, current_player, ai_color, player_color, status_label, move_made, game_started, pending_after_id
-    
     if not game_started:
         pending_after_id = None
         return
-    
-    # Disable interaction during AI thinking
-    canvas.unbind("<Button-1>")
-    status_label.config(text="AI is thinking...")
-    root.update()  # Force UI update
-    
-    try:
-        # Get AI move (blocking call)
-        position = Algo.find_best_move(board, ai_color, max_depth=3)
-    except Exception as e:
-        print("AI error:", e)
-        position = None
-    
-    # Re-enable interaction
-    canvas.bind("<Button-1>", handle_click)
-    
-    if not game_started:
-        return
-    
-    # Handle no valid move
-    if position is None:
-        if logic.is_board_full(board):
-            messagebox.showinfo("Game Over", "Game ends in a draw!")
-            game_started = False
-        else:
-            messagebox.showinfo("Game Over", "No valid moves available!")
-            board = logic.initialize_board()
-            draw_board()
-        return
-    
-    # Apply AI move
-    board[position[0]][position[1]] = ai_color
-    draw_board()
-    
-    # Check if AI wins
-    if logic.check_win(board, position[0], position[1], ai_color):
-        messagebox.showinfo("Game Over", "AI wins!")
-        game_started = False
-        return
-    
-    # Check for draw
-    if logic.is_board_full(board):
-        messagebox.showinfo("Game Over", "Game ends in a draw!")
-        game_started = False
-        return
-    
-    # Switch back to player
-    current_player = player_color
-    move_made = 0
-    status_label.config(text="Your turn")
 
+    if ai_working:
+        return
+
+    ai_working = True
+    ai_search_id += 1
+    this_search_id = ai_search_id
+
+    ai_stop_event = threading.Event()
+    stop_ev = ai_stop_event
+
+    # Update status
+    state.config(text="AI is making its move...")
+    root.update()
+
+    # Take snapshot of board for thread safety
+    board_snapshot = [row[:] for row in board]
+
+    def worker(board_snap, search_id, stop_ev):
+        """Background thread for AI calculation."""
+        try:
+            position = Algo.find_best_move(board_snap, ai_color, max_depth=3, stop_event=stop_ev)
+        except Exception as e:
+            position = None
+            print("AI worker error:", e)
+
+        def finish():
+            """Return to main thread to update UI."""
+            global board, current_player, move, state, ai_working, game_started
+            # Ignore if search was invalidated
+            if search_id != ai_search_id or not game_started or (stop_ev is not None and stop_ev.is_set()):
+                ai_working = False
+                return
+
+            # Handle no valid moves
+            if position is None:
+                if logic.is_board_full(board):
+                    messagebox.showinfo("Game Over", "Game ends in a draw!")
+                    game_started = False
+                    ai_working = False
+                    return
+                else:
+                    messagebox.showinfo("Game Over", "No valid moves available!")
+                    board = logic.initialize_board()
+                    draw_board()
+                    ai_working = False
+                    return
+
+            # Place AI move
+            board[position[0]][position[1]] = ai_color
+            draw_board()
+
+            # Check AI win
+            if logic.check_win(board, position[0], position[1], ai_color):
+                messagebox.showinfo("Game Over", "AI wins!")
+                game_started = False
+                ai_working = False
+                return
+
+            # Check draw
+            if logic.is_board_full(board):
+                messagebox.showinfo("Game Over", "Game ends in a draw!")
+                game_started = False
+                ai_working = False
+                return
+
+            # Switch back to player
+            current_player = player_color
+            move = 0
+            state.config(text="Your turn")
+            ai_working = False
+
+        root.after(0, finish)
+
+    # Start background thread
+    t = threading.Thread(target=worker, args=(board_snapshot, this_search_id, stop_ev), daemon=True)
+    t.start()
 
 def start_game_turn():
-    """Start the game with correct turn order."""
-    global board, current_player, ai_color, player_color, status_label, move_made, game_started, pending_after_id
+    """Start the game with appropriate first player."""
+    global board, current_player, ai_color, player_color, state, move, game_started, pending_after_id
     
     game_started = True
-    move_made = 0
+    move = 0
     board = logic.initialize_board()
     draw_board()
     
-    if ai_color == BLACK:  # AI plays first
+    if ai_color == Black:  # AI goes first
         current_player = ai_color
-        pending_after_id = root.after(500, ai_move)  # Delay for visual effect
-    else:  # Player plays first
+        pending_after_id = root.after(500, AI_move)
+    else:  # Player goes first
         current_player = player_color
-        status_label.config(text="Your turn")
-
+        state.config(text="Your turn")
 
 def on_player_move():
-    """Handle transition after player move."""
-    global current_player, ai_color, status_label, move_made, game_started, pending_after_id
+    """Handle turn transition after player move."""
+    global board, current_player, ai_color, player_color, state, move, game_started, pending_after_id
     
-    if not game_started or move_made == 0:
+    if not game_started or move == 0:
         return
     
     current_player = ai_color
-    move_made = 0
-    status_label.config(text="AI is thinking...")
-    pending_after_id = root.after(800, ai_move)  # Delay for visual effect
+    move = 0
+    state.config(text="AI is thinking...")
+    pending_after_id = root.after(800, AI_move)
 
+def reconfirm():
+    """Confirm and handle window closing."""
+    global pending_after_id, game_started, root, ai_stop_event
+    
+    try:
+        ok = messagebox.askokcancel("Quit", "Do you really want to quit?")
+    except Exception:
+        ok = True
 
-def confirm_exit():
-    """Confirm before exiting."""
-    global pending_after_id, game_started, root
-    
-    ok = messagebox.askokcancel("Quit", "Do you really want to quit?")
-    
     if ok:
-        # Cancel any pending callbacks
+        # Cancel pending callbacks
         try:
             if pending_after_id is not None:
                 root.after_cancel(pending_after_id)
+        except Exception:
+            pass
+        pending_after_id = None
+        
+        # Stop any running AI search
+        try:
+            if ai_stop_event is not None:
+                ai_stop_event.set()
         except Exception:
             pass
         
@@ -250,36 +291,43 @@ def confirm_exit():
         finally:
             root = None
 
-
-def restart_game():
-    """Restart the game."""
-    global game_started, board, current_player, player_color, ai_color, status_label, move_made, pending_after_id
+def restart():
+    """Restart the game with confirmation."""
+    global game_started, board, current_player, player_color, ai_color, state, move, ai_stop_event, pending_after_id
     
     if messagebox.askyesno("Restart", "Do you want to restart the game?"):
-        # Cancel any pending callbacks
+        # Cancel pending callbacks
         try:
             if pending_after_id is not None:
                 root.after_cancel(pending_after_id)
         except Exception:
             pass
-        
+        pending_after_id = None
+
+        # Stop AI search
+        try:
+            if ai_stop_event is not None:
+                ai_stop_event.set()
+                ai_stop_event = None
+        except Exception:
+            pass
+
         # Reset game state
         board = logic.initialize_board()
-        current_player = BLACK
+        current_player = Black
         game_started = False
         player_color = None
         ai_color = None
-        move_made = 0
+        move = 0
         draw_board()
-        status_label.config(text="Welcome to Gomoku!")
-
+        state.config(text="Welcome to play gomoku!")
 
 def start_gui():
     """Initialize and start the GUI."""
-    global root, canvas, status_label, board, current_player, game_started, bg_photo
+    global root, canvas, state, board, current_player, game_started, bg_photo
     
     root = tk.Tk()
-    root.title("Gomoku")
+    root.title("五子棋 (Gobang)")
     
     # Center window
     screen_width = root.winfo_screenwidth()
@@ -290,47 +338,45 @@ def start_gui():
     
     # Reset game state
     board = logic.initialize_board()
-    current_player = BLACK
+    current_player = Black
     game_started = False
     
-    # Control panel
+    # Create control frame
     control_frame = tk.Frame(root, height=80, bg="#E3CF57")
     control_frame.pack(side=tk.TOP, fill=tk.X)
     
     # Status label
-    status_label = tk.Label(control_frame, text="Welcome to Gomoku!", bg="#E3CF57", font=("Arial", 12))
-    status_label.pack(pady=5)
+    state = tk.Label(control_frame, text="Welcome to play gomoku!", bg="#E3CF57", font=("Arial", 12))
+    state.pack(pady=5)
     
     # Buttons
     button_frame = tk.Frame(control_frame, bg="#E3CF57")
     button_frame.pack(pady=5)
     
     tk.Button(button_frame, text="Start Game", command=choose_color, height=1, width=15).pack(side=tk.LEFT, padx=5)
-    tk.Button(button_frame, text="Restart", command=restart_game, height=1, width=15).pack(side=tk.LEFT, padx=5)
+    tk.Button(button_frame, text="Restart", command=restart, height=1, width=15).pack(side=tk.LEFT, padx=5)
     
-    # Game board canvas
+    # Canvas for board
     canvas = tk.Canvas(root, width=WINDOW_SIZE, height=WINDOW_SIZE, bg="#E3CF57")
     canvas.pack()
     canvas.focus_set()
     
-    # Load background image
+    # Try to load background image
     try:
         img = Image.open('mmexport1765254795139_edit_70690453677752.jpg')
         img = img.resize((WINDOW_SIZE, WINDOW_SIZE), Image.LANCZOS)
         bg_photo = ImageTk.PhotoImage(img)
-        canvas.bg_photo = bg_photo  # Keep reference
+        canvas.bg_photo = bg_photo
     except Exception:
         bg_photo = None
-    
-    # Initial draw
+
     draw_board()
     
     root.resizable(False, False)
-    root.protocol("WM_DELETE_WINDOW", confirm_exit)
+    root.protocol("WM_DELETE_WINDOW", reconfirm)
     canvas.bind("<Button-1>", handle_click)
-    
     root.mainloop()
 
-
+# Entry point
 if __name__ == "__main__":
     start_gui()
