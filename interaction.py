@@ -36,7 +36,7 @@ bg_photo = None
 board = [[Empty for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
 
 def draw_board():
-    """Draw grid and pieces based on board state."""
+    #Draw grid and pieces based on board state
     global canvas, board
     
     canvas.delete("all")
@@ -84,7 +84,7 @@ def draw_board():
                 )
 
 def handle_click(event):
-    """Handle mouse click to place player piece."""
+    #Handle mouse click to place player piece
     global game_started, board, move, warning
     
     if not game_started or current_player != player_color:
@@ -123,7 +123,7 @@ def handle_click(event):
         return
 
 def choose_color():
-    """Let player choose black or white."""
+    #Let player choose black or white
     global game_started, player_color, ai_color
     
     if game_started:
@@ -141,10 +141,10 @@ def choose_color():
     start_game_turn()
 
 def AI_move():
-    """
-    Start AI search in background thread.
-    Uses ai_search_id to invalidate old searches.
-    """
+    
+    #Start AI search in background thread
+    #Uses ai_search_id to invalidate old searches
+    
     global board, current_player, ai_color, player_color, state, move, pending_after_id, game_started, ai_search_id, ai_working, ai_stop_event
 
     if not game_started:
@@ -169,7 +169,7 @@ def AI_move():
     board_snapshot = [row[:] for row in board]
 
     def worker(board_snap, search_id, stop_ev):
-        """Background thread for AI calculation."""
+        #Background thread for AI calculation.
         try:
             position = Algo.find_best_move(board_snap, ai_color, max_depth=3, stop_event=stop_ev)
         except Exception as e:
@@ -177,7 +177,7 @@ def AI_move():
             print("AI worker error:", e)
 
         def finish():
-            """Return to main thread to update UI."""
+            #Return to main thread to update UI
             global board, current_player, move, state, ai_working, game_started
             # Ignore if search was invalidated
             if search_id != ai_search_id or not game_started or (stop_ev is not None and stop_ev.is_set()):
@@ -229,7 +229,7 @@ def AI_move():
     t.start()
 
 def start_game_turn():
-    """Start the game with appropriate first player."""
+    #Start the game with appropriate first player
     global board, current_player, ai_color, player_color, state, move, game_started, pending_after_id
     
     game_started = True
@@ -245,7 +245,7 @@ def start_game_turn():
         state.config(text="Your turn")
 
 def on_player_move():
-    """Handle turn transition after player move."""
+    #Handle turn transition after player move
     global board, current_player, ai_color, player_color, state, move, game_started, pending_after_id
     
     if not game_started or move == 0:
@@ -257,7 +257,7 @@ def on_player_move():
     pending_after_id = root.after(800, AI_move)
 
 def reconfirm():
-    """Confirm and handle window closing."""
+    #Confirm and handle window closing
     global pending_after_id, game_started, root, ai_stop_event
     
     try:
@@ -292,7 +292,7 @@ def reconfirm():
             root = None
 
 def restart():
-    """Restart the game with confirmation."""
+    #Restart the game with confirmation
     global game_started, board, current_player, player_color, ai_color, state, move, ai_stop_event, pending_after_id
     
     if messagebox.askyesno("Restart", "Do you want to restart the game?"):
@@ -323,11 +323,11 @@ def restart():
         state.config(text="Welcome to play gomoku!")
 
 def start_gui():
-    """Initialize and start the GUI."""
+    #Initialize and start the GUI.
     global root, canvas, state, board, current_player, game_started, bg_photo
     
     root = tk.Tk()
-    root.title("五子棋 (Gobang)")
+    root.title("Gomoku")
     
     # Center window
     screen_width = root.winfo_screenwidth()

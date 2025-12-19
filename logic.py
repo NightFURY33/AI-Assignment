@@ -5,7 +5,7 @@ BLACK = 1
 WHITE = 2
 
 def initialize_board():
-    """Create and return an empty board."""
+    #Create and return an empty board
     board = []
     for _ in range(BOARD_SIZE):
         row = [EMPTY] * BOARD_SIZE
@@ -13,7 +13,7 @@ def initialize_board():
     return board
 
 def is_board_full(board):
-    """Check if board has no empty spaces."""
+    #Check if board has no empty spaces
     for r in range(BOARD_SIZE):
         for c in range(BOARD_SIZE):
             if board[r][c] == EMPTY:
@@ -21,7 +21,7 @@ def is_board_full(board):
     return True
 
 def check_win(board, r, c, player):
-    """Check if player has won with a move at (r,c)."""
+    #Check if player has won with a move at (r,c)
     directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
     
     for dr, dc in directions:

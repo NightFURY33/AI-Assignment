@@ -1,7 +1,7 @@
 import logic 
 import random
 
-# --- Constants and configuration ---
+#Constants and configuration
 BOARD_SIZE = 15
 Empty = 0
 Black = 1
@@ -22,13 +22,13 @@ SCORES = {
 }
     
 class SearchStopped(Exception):
-    """Exception raised when search is cancelled externally."""
+    #Exception raised when search is cancelled externally
     pass
 
 # --- Board evaluation: core of AI strength ---
 
 def evaluate_board(board, player):
-    """Evaluate board advantage for given player."""
+    #Evaluate board advantage for given player
     score = 0
     opponent = White if player == Black else Black
     
@@ -39,7 +39,7 @@ def evaluate_board(board, player):
     return score
 
 def evaluate_player(board, player):
-    """Calculate pattern scores for a player."""
+    #Calculate pattern scores for a player
     score = 0
     for r in range(BOARD_SIZE):
         for c in range(BOARD_SIZE):
@@ -48,7 +48,7 @@ def evaluate_player(board, player):
     return score
 
 def check_patterns(board, r, c, player):
-    """Check patterns around a position in all directions."""
+    #Check patterns around a position in all directions
     directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
     total = 0
     for dr, dc in directions:
@@ -57,7 +57,7 @@ def check_patterns(board, r, c, player):
     return total
 
 def get_line_pattern(board, r, c, dr, dc, player):
-    """Get pattern string along a direction."""
+    #Get pattern string along a direction
     pattern = []
     for i in range(-4, 5):
         nr = r + dr * i
@@ -74,7 +74,7 @@ def get_line_pattern(board, r, c, dr, dc, player):
     return pattern
 
 def pattern_to_score(pattern):
-    """Convert pattern to score using SCORES dictionary."""
+    #Convert pattern to score using SCORES dictionary
     s = ''.join(map(str, pattern))
     
     # Identify highest scoring patterns
@@ -104,7 +104,7 @@ def pattern_to_score(pattern):
     return 0
 
 def is_game_over(board):
-    """Check if game has ended (win or draw)."""
+    #Check if game has ended (win or draw)
     # Check for winner
     for r in range(BOARD_SIZE):
         for c in range(BOARD_SIZE):
@@ -118,13 +118,13 @@ def is_game_over(board):
         
     return False
 
-# --- Optimization: limit search area ---
+#Optimization: limit search area
 
 def generate_candidate_moves(board):
-    """
-    Generate candidate moves only around existing pieces.
-    Key optimization to reduce search space.
-    """
+    
+    #Generate candidate moves only around existing pieces
+    #Key optimization to reduce search space
+    
     candidate_moves = set()
     has_piece = False
     
@@ -149,9 +149,8 @@ def generate_candidate_moves(board):
 # --- Minimax with Alpha-Beta pruning ---
 
 def minimax(board, depth, is_maximizing, alpha, beta, player, stop_event=None):
-    """
-    Minimax algorithm with Alpha-Beta pruning.
-    """
+    
+    #Minimax algorithm with Alpha-Beta pruning
     
     # Cooperative cancellation
     if stop_event is not None and stop_event.is_set():
@@ -202,10 +201,10 @@ def minimax(board, depth, is_maximizing, alpha, beta, player, stop_event=None):
     return best_score
 
 def find_best_move(board, player, max_depth=3, stop_event=None):
-    """
-    Find best move for AI player.
-    Main decision function.
-    """
+    
+    #Find best move for AI player
+    #Main decision function
+    
     best_score = -float('inf')
     best_move = None
     
